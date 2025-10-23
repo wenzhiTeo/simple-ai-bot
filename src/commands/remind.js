@@ -25,7 +25,6 @@ export const remindCommand = {
             if (!interaction.replied && !interaction.deferred) {
                 await interaction.reply({
                     content: '❌ An error occurred while setting your reminder. Please try again.',
-                    ephemeral: true
                 });
             }
         }

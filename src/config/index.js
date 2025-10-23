@@ -16,11 +16,10 @@ const config = {
     IS_MENTION_ONLY: process.env.IS_MENTION_ONLY !== 'false',
 
     // Limits
-    MAX_HISTORY_LENGTH: parseInt(process.env.MAX_HISTORY_LENGTH) || 20,
     MAX_MESSAGE_LENGTH: parseInt(process.env.MAX_MESSAGE_LENGTH) || 2000,
 
     // Server
-    PORT: parseInt(process.env.PORT) || 3000,
+    ADMIN_PORT: parseInt(process.env.ADMIN_PORT) || 3000,
     NODE_ENV: process.env.NODE_ENV || 'development',
 
     // Features

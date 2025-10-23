@@ -13,7 +13,6 @@ export const remindersCommand = {
             if (userReminders.length === 0) {
                 await interaction.reply({
                     content: '📭 You have no active reminders.',
-                    ephemeral: true
                 });
                 return;
             }
@@ -36,12 +35,11 @@ export const remindersCommand = {
                 });
             });
 
-            await interaction.reply({ embeds: [embed], ephemeral: true });
+            await interaction.reply({ embeds: [embed] });
         } catch (error) {
             console.error('Error in reminders command:', error);
             await interaction.reply({
                 content: '❌ An error occurred while fetching your reminders.',
-                ephemeral: true
             });
         }
     }

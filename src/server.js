@@ -3,8 +3,10 @@ import AdminJS from "adminjs";
 import AdminJSExpress from "@adminjs/express";
 import * as AdminJSSequelize from "@adminjs/sequelize";
 import createGeminiServicesRoute from "./routes/geminiServices.js";
+import config from "./config/index.js";
 
-const PORT = process.env.PORT || 3000;
+
+const ADMIN_PORT = config.ADMIN_PORT
 
 export default function expressStart(dbInstance, geminiService) {
     // Register AdminJS adapter
@@ -40,8 +42,8 @@ export default function expressStart(dbInstance, geminiService) {
     app.use(admin.options.rootPath, adminRouter);
 
     // Start server
-    app.listen(PORT, () => {
-        console.log(`✅ Server running on port ${PORT}`);
-        console.log(`📊 Admin: http://localhost:${PORT}/admin`);
+    app.listen(ADMIN_PORT, () => {
+        console.log(`✅ Express server running on port ${ADMIN_PORT}`);
+        console.log(`📊 Admin: http://localhost:${ADMIN_PORT}/admin`);
     });
 }

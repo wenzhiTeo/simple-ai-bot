@@ -13,7 +13,6 @@ export const clearRemindersCommand = {
             if (userReminders.length === 0) {
                 await interaction.reply({
                     content: '📭 You have no active reminders to clear.',
-                    ephemeral: true
                 });
                 return;
             }
@@ -22,13 +21,11 @@ export const clearRemindersCommand = {
 
             await interaction.reply({
                 content: `🗑️ Successfully cleared ${clearedCount} reminder(s).`,
-                ephemeral: true
             });
         } catch (error) {
             console.error('Error in clear-reminders command:', error);
             await interaction.reply({
                 content: '❌ An error occurred while clearing your reminders.',
-                ephemeral: true
             });
         }
     }

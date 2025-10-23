@@ -59,7 +59,6 @@ class CommandHandler {
             if (cooldownLeft) {
                 await interaction.reply({
                     content: `⏱️ Please wait ${cooldownLeft} seconds`,
-                    ephemeral: true
                 });
                 return;
             }
@@ -69,7 +68,7 @@ class CommandHandler {
             } catch (error) {
                 console.error(`❌ Command ${interaction.commandName} failed:`, error);
 
-                const errorMessage = { content: '❌ Command failed!', ephemeral: true };
+                const errorMessage = { content: '❌ Command failed!' };
                 if (interaction.replied || interaction.deferred) {
                     await interaction.followUp(errorMessage);
                 } else {

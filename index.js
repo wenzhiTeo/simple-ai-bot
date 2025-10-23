@@ -13,7 +13,7 @@ import { ReminderService } from "./src/services/reminder.js";
 try {
     await initializeDatabase();
     await geminiService.init();
-    console.log("✅ Services ready");
+    console.log("✅ Database & AI Services ready");
 } catch (err) {
     console.error("❌ Startup failed:", err);
     process.exit(1);
@@ -43,7 +43,7 @@ setupCronJobs(client, services);
 
 // Bot ready
 client.on(Events.ClientReady, async (c) => {
-    console.log(`✅ Bot ready: ${c.user.tag}`);
+    console.log(`✅ Discord bot ready: ${c.user.tag}`);
 
     if (config.INIT_CHANNEL_ID) {
         messaging.sendIntroMessage(config.INIT_CHANNEL_ID, geminiService);

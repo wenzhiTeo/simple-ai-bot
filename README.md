@@ -58,7 +58,7 @@ A Discord bot powered by Google Gemini AI with intelligent conversation, schedul
 
 ## 📖 Usage
 
-### Basic Commands
+### Basic Discord UseCase
 
 #### 💬 Chat with AI
 ```
@@ -92,12 +92,6 @@ Visit `http://localhost:3000/admin` to:
 - **📊 Usage Statistics**: View prompt usage counts and activity
 - **⚙️ Database Management**: Browse and manage all stored data
 
-### Running Options
-
-```bash
-# Start bot with admin panel (recommended)
-npm start
-```
 
 ## ⚙️ Configuration
 
@@ -110,37 +104,6 @@ npm start
 | `INIT_CHANNEL_ID`         | Startup notification channel       | ❌        | `123456789012345678` |
 | `BLACKLISTED_CHANNEL_IDS` | Ignored channels (comma-separated) | ❌        | `123,456,789`        |
 
-### Advanced Settings
-
-Edit `src/config/index.js`:
-
-```javascript
-{
-  MODEL_NAME: "gemini-2.0-flash",        // AI model version
-  MAX_MESSAGE_LENGTH: 2000,              // Discord message limit
-  IS_MENTION_ONLY: true,                 // Require @mention to respond
-  MAX_HISTORY_LENGTH: 20                 // Chat context length
-}
-```
-
-## 📁 Project Structure
-
-```
-discord-gemini-bot/
-├── 📂 src/
-│   ├── 📂 commands/        # Discord slash commands
-│   ├── 📂 config/          # Bot configuration
-│   ├── 📂 handlers/        # Message & command processing
-│   ├── 📂 routes/          # API endpoints
-│   ├── 📂 services/        # Core services (AI, reminders)
-│   └── 📄 server.js        # Express server
-├── 📂 database/
-│   ├── 📂 models/         # Data models (prompts, etc.)
-│   └── 📄 index.js        # Database setup
-├── 📄 index.js            # Main application entry
-├── 📄 .env               # Environment variables
-└── 📄 database.sqlite    # SQLite database (auto-created)
-```
 
 ## 🛠️ Tech Stack
 
@@ -153,55 +116,8 @@ discord-gemini-bot/
 | **Scheduler** | node-cron          | Reminder system             |
 | **Server**    | Express.js         | Web service                 |
 
-## 🔧 Troubleshooting
-
-### Common Issues
-
-**Bot not responding:**
-- ✅ Check Discord bot permissions (including slash commands)
-- ✅ Verify `DISCORD_TOKEN` in `.env` file
-- ✅ Ensure bot is mentioned in message (if mention-only mode enabled)
-- ✅ Check console logs for connection errors
-
-**AI responses failing:**
-- ✅ Verify `GEMINI_API_KEY` is valid and active
-- ✅ Check API quota limits and billing
-- ✅ Review console error logs for specific errors
-
-**Admin panel not loading:**
-- ✅ Ensure port 3000 is available
-- ✅ Confirm bot is running (`npm start`)
-- ✅ Visit `http://localhost:3000/admin`
-- ✅ Check firewall settings
-
-**Reminders not working:**
-- ✅ Use `/remind time:HHMM message:your text` format (e.g., `/remind time:1430 message:Meeting`)
-- ✅ Time format is HHMM (no colon): 0900, 1430, 2000
-- ✅ Check console for cron job logs
-- ✅ Verify bot has send message permissions
-- ✅ Use `/reminders` to see active reminders
-
-**Database issues:**
-- ✅ Default prompts seed only on first run (empty database)
-- ✅ Delete `database.sqlite` to reset all data
-- ✅ Check file permissions for database creation
-
-### Debug Mode
-
-Enable detailed logging:
-```bash
-DEBUG=* npm start
-```
-
-## 📄 License
-
-ISC License - Feel free to use and modify!
 
 ## 🌐 Language Support
 
 - **English**: README.md (this file)
 - **中文**: [README-zh.md](README-zh.md)
-
----
-
-**Made with ❤️ for Discord communities**

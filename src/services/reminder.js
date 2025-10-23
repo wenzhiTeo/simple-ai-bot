@@ -13,7 +13,6 @@ export class ReminderService {
     if (!/^\d{3,4}$/.test(timeStr)) {
       await interaction.reply({
         content: '⚠️ Invalid time format. Please use HHMM format (e.g., 1430 for 2:30 PM)',
-        ephemeral: true
       });
       return;
     }
@@ -26,7 +25,6 @@ export class ReminderService {
     if (hours > 23 || minutes > 59) {
       await interaction.reply({
         content: '⚠️ Invalid time. Hours must be 0-23 and minutes must be 0-59',
-        ephemeral: true
       });
       return;
     }
@@ -45,8 +43,7 @@ export class ReminderService {
     const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
 
     await interaction.reply({
-      content: `⏰ Reminder set for **${formattedTime}**\n📝 Message: "${message}"`,
-      ephemeral: false
+      content: `⏰ Reminder set for **${formattedTime}**\n📝 Message: "${message}"`
     });
   }
 

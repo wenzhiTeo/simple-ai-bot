@@ -33,6 +33,11 @@ export const helpCommand = {
                     inline: true
                 },
                 {
+                    name: '🧹 /reset',
+                    value: "Clear the bot's memory of this channel's conversation",
+                    inline: true
+                },
+                {
                     name: '❓ /help',
                     value: 'Show this help message',
                     inline: true

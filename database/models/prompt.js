@@ -40,30 +40,6 @@ export default (sequelize) => {
         }
     });
 
-    // Reload Gemini service when active prompt changes
-    Prompt.addHook("afterSave", async (prompt) => {
-        if (prompt.is_active || prompt.changed('is_active')) {
-            try {
-                console.log(`📌 Prompt updated: ${prompt.title}`);
-
-                // Try to reload Gemini service via API (only if server is running)
-                const axios = await import('axios');
-                await axios.default.post(`http://localhost:3000/ai-api/reloadPrompt`, {}, {
-                    timeout: 2000
-                });
-
-                console.log('✅ Gemini service reloaded');
-            } catch (error) {
-                // Silently ignore connection errors during startup
-                if (error.code === 'ECONNREFUSED' || error.code === 'UND_ERR_CONNECT_TIMEOUT') {
-                    console.log('🔄 Server not ready yet, skipping Gemini reload');
-                } else {
-                    console.warn('⚠️ Failed to reload Gemini service:', error.message);
-                }
-            }
-        }
-    });
-
     // Instance methods
     Prompt.prototype.activate = async function () {
         this.is_active = true;

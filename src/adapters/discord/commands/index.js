@@ -4,13 +4,15 @@ import { remindCommand } from './remind.js';
 import { helpCommand } from './help.js';
 import { remindersCommand } from './reminders.js';
 import { clearRemindersCommand } from './clear-reminders.js';
+import { resetCommand } from './reset.js';
 
 export const commands = [
     pingCommand,
     remindCommand,
     helpCommand,
     remindersCommand,
-    clearRemindersCommand
+    clearRemindersCommand,
+    resetCommand
 ];
 
 export const commandMap = new Map(

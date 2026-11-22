@@ -1,94 +1,70 @@
-// src/services/reminder.js
+import { Op } from "sequelize";
+
+/** Reminders that could not be delivered are dropped once they are this overdue. */
+const GIVE_UP_AFTER_MS = 60 * 60 * 1000;
+
+/** Parse "930" / "1430" (HHMM) into { hours, minutes }, or null if invalid. */
+export function parseClockTime(input) {
+    if (!/^\d{3,4}$/.test(input ?? "")) return null;
+    const hours = parseInt(input.slice(0, -2), 10);
+    const minutes = parseInt(input.slice(-2), 10);
+    if (hours > 23 || minutes > 59) return null;
+    return { hours, minutes };
+}
+
+/** The next time the clock shows hours:minutes (today, or tomorrow if already past). */
+export function nextOccurrence({ hours, minutes }, now = new Date()) {
+    const due = new Date(now);
+    due.setHours(hours, minutes, 0, 0);
+    if (due <= now) due.setDate(due.getDate() + 1);
+    return due;
+}
+
+/**
+ * Platform-independent reminders, stored in the database so they survive restarts.
+ * Delivery goes through whichever adapter the reminder was created on.
+ */
 export class ReminderService {
-  constructor(client) {
-    this.reminders = [];
-    this.client = client;
-  }
-
-  async handleInteraction(interaction) {
-    const timeStr = interaction.options.getString('time');
-    const message = interaction.options.getString('message');
-
-    // Validate time format (3-4 digits)
-    if (!/^\d{3,4}$/.test(timeStr)) {
-      await interaction.reply({
-        content: '⚠️ Invalid time format. Please use HHMM format (e.g., 1430 for 2:30 PM)',
-      });
-      return;
+    /**
+     * @param {object} deps
+     * @param {import("sequelize").ModelStatic<any>} deps.Reminder
+     * @param {Map<string, {send: Function, mention?: Function}>} deps.adapters
+     */
+    constructor({ Reminder, adapters, logger = console }) {
+        this.Reminder = Reminder;
+        this.adapters = adapters;
+        this.logger = logger;
     }
 
-    // Parse time
-    const hours = parseInt(timeStr.slice(0, -2));
-    const minutes = parseInt(timeStr.slice(-2));
-
-    // Validate time values
-    if (hours > 23 || minutes > 59) {
-      await interaction.reply({
-        content: '⚠️ Invalid time. Hours must be 0-23 and minutes must be 0-59',
-      });
-      return;
+    create({ platform, conversationId, userId, text, dueAt }) {
+        return this.Reminder.create({ platform, conversationId, userId, text, dueAt });
     }
 
-    const reminder = {
-      userId: interaction.user.id,
-      channelId: interaction.channel.id,
-      time: timeStr,
-      text: message,
-      createdAt: new Date(),
-      username: interaction.user.username
-    };
+    list(platform, userId) {
+        return this.Reminder.findAll({ where: { platform, userId }, order: [["dueAt", "ASC"]] });
+    }
 
-    this.reminders.push(reminder);
+    /** @returns {Promise<number>} how many were removed */
+    clear(platform, userId) {
+        return this.Reminder.destroy({ where: { platform, userId } });
+    }
 
-    const formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+    /** Send every reminder that is due. Called once a minute by the scheduler. */
+    async checkDue(now = new Date()) {
+        const due = await this.Reminder.findAll({ where: { dueAt: { [Op.lte]: now } } });
 
-    await interaction.reply({
-      content: `⏰ Reminder set for **${formattedTime}**\n📝 Message: "${message}"`
-    });
-  }
-
-  checkReminders() {
-    const now = new Date();
-    const current = now.toTimeString().slice(0, 5);
-
-    // Filter out triggered reminders
-    this.reminders = this.reminders.filter((reminder) => {
-      const reminderTime =
-        reminder.time.length === 3
-          ? `0${reminder.time.slice(0, 1)}:${reminder.time.slice(1)}`
-          : `${reminder.time.slice(0, 2)}:${reminder.time.slice(2)}`;
-
-      if (reminderTime === current) {
-        const channel = this.client.channels.cache.get(reminder.channelId);
-        if (channel) {
-          channel.send(`<@${reminder.userId}> ⏰ 提醒：${reminder.text}`);
+        for (const reminder of due) {
+            const adapter = this.adapters.get(reminder.platform);
+            try {
+                if (!adapter) throw new Error(`No adapter for platform "${reminder.platform}"`);
+                const who = adapter.mention?.(reminder.userId) ?? "";
+                await adapter.send(reminder.conversationId, `${who} ⏰ 提醒：${reminder.text}`.trim());
+                await reminder.destroy();
+            } catch (error) {
+                this.logger.error(`❌ Reminder ${reminder.id} failed:`, error.message);
+                // Keep it for the next tick unless it has been failing for too long.
+                if (now - reminder.dueAt > GIVE_UP_AFTER_MS) await reminder.destroy();
+            }
         }
-        return false; // Remove this reminder
-      }
-      return true; // Keep this reminder
-    });
-  }
-
-  // Get all active reminders for a user
-  getUserReminders(userId) {
-    return this.reminders.filter(r => r.userId === userId);
-  }
-
-  // Remove a specific reminder
-  removeReminder(userId, index) {
-    const userReminders = this.getUserReminders(userId);
-    if (userReminders[index]) {
-      const reminderIndex = this.reminders.indexOf(userReminders[index]);
-      this.reminders.splice(reminderIndex, 1);
-      return true;
     }
-    return false;
-  }
-
-  // Clear all reminders for a user
-  clearUserReminders(userId) {
-    const initialLength = this.reminders.length;
-    this.reminders = this.reminders.filter(r => r.userId !== userId);
-    return initialLength - this.reminders.length;
-  }
 }

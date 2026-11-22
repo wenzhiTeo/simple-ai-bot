@@ -1,49 +1,78 @@
+import { timingSafeEqual } from "node:crypto";
 import express from "express";
 import AdminJS from "adminjs";
 import AdminJSExpress from "@adminjs/express";
 import * as AdminJSSequelize from "@adminjs/sequelize";
-import createGeminiServicesRoute from "./routes/geminiServices.js";
 import config from "./config/index.js";
 
+const safeEqual = (a, b) => {
+    const left = Buffer.from(a);
+    const right = Buffer.from(b);
+    return left.length === right.length && timingSafeEqual(left, right);
+};
 
-const ADMIN_PORT = config.ADMIN_PORT
+/**
+ * Protects the admin panel.
+ * - ADMIN_PASSWORD set: HTTP Basic auth.
+ * - not set: only direct requests from this machine (anything that came through
+ *   a tunnel or reverse proxy carries a forwarding header and is rejected).
+ */
+export function adminGuard({ user, password }) {
+    return (req, res, next) => {
+        if (password) {
+            const header = req.headers.authorization ?? "";
+            const [scheme, encoded] = header.split(" ");
+            const [name, ...rest] = Buffer.from(encoded ?? "", "base64").toString().split(":");
+            if (scheme === "Basic" && safeEqual(name, user) && safeEqual(rest.join(":"), password)) {
+                return next();
+            }
+            res.set("WWW-Authenticate", 'Basic realm="admin"');
+            return res.status(401).send("Authentication required");
+        }
 
-export default function expressStart(dbInstance, geminiService) {
-    // Register AdminJS adapter
+        const address = req.socket.remoteAddress ?? "";
+        const isLocal = ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(address);
+        const isForwarded = req.headers["x-forwarded-for"] || req.headers.forwarded;
+        if (isLocal && !isForwarded) return next();
+        return res.status(403).send("Admin panel is local-only. Set ADMIN_PASSWORD to enable remote access.");
+    };
+}
+
+/**
+ * @param {import("sequelize").Sequelize} dbInstance
+ * @param {{path: string, router: express.Router}[]} [routes] extra routers, e.g. platform webhooks
+ */
+export default function startServer(dbInstance, routes = []) {
     AdminJS.registerAdapter(AdminJSSequelize);
 
-    // Configure AdminJS
     const admin = new AdminJS({
         databases: [dbInstance],
         rootPath: "/admin",
         branding: {
-            companyName: "Discord Gemini Bot",
+            companyName: "AI Bot",
             logo: false,
-            softwareBrothers: false,
+            withMadeWithLove: false,
         }
     });
 
     const app = express();
 
-    // Basic middleware
-    app.use(express.json());
-    app.use(express.urlencoded({ extended: true }));
-
-    // Health check
-    app.get('/health', (req, res) => {
-        res.json({ status: 'healthy', uptime: process.uptime() });
+    app.get("/health", (req, res) => {
+        res.json({ status: "healthy", uptime: process.uptime() });
     });
 
-    // API routes
-    app.use("/ai-api", createGeminiServicesRoute(geminiService));
+    // Webhook routers are mounted before any body parser so they can verify raw-body signatures
+    for (const { path, router } of routes) app.use(path, router);
 
-    // Admin panel
-    const adminRouter = AdminJSExpress.buildRouter(admin);
-    app.use(admin.options.rootPath, adminRouter);
+    app.use(
+        admin.options.rootPath,
+        adminGuard({ user: config.ADMIN_USER, password: config.ADMIN_PASSWORD }),
+        AdminJSExpress.buildRouter(admin)
+    );
 
-    // Start server
-    app.listen(ADMIN_PORT, () => {
-        console.log(`✅ Express server running on port ${ADMIN_PORT}`);
-        console.log(`📊 Admin: http://localhost:${ADMIN_PORT}/admin`);
+    app.listen(config.ADMIN_PORT, () => {
+        console.log(`✅ Express server running on port ${config.ADMIN_PORT}`);
+        console.log(`📊 Admin: http://localhost:${config.ADMIN_PORT}/admin` +
+            (config.ADMIN_PASSWORD ? "" : " (local-only, set ADMIN_PASSWORD for remote access)"));
     });
 }

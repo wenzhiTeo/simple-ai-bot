@@ -1,13 +1,13 @@
 {
-  "name": "discord-gemini-bot",
+  "name": "simple-ai-bot",
   "version": "1.0.0",
-  "description": "Discord bot with Gemini AI integration and reminder functionality",
+  "description": "Multi-platform AI chat bot (Discord today) with Gemini, per-conversation memory and reminders",
   "main": "index.js",
   "type": "module",
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node --test"
   },
   "keywords": [
     "discord",
@@ -21,16 +21,18 @@
   "dependencies": {
     "@adminjs/express": "^6.1.1",
     "@adminjs/sequelize": "^4.1.1",
-    "@google/generative-ai": "^0.24.1",
+    "@google/genai": "^2.32.0",
     "adminjs": "^7.6.1",
-    "axios": "^1.12.2",
-    "body-parser": "^2.2.0",
-    "discord-interactions": "^4.3.0",
     "discord.js": "^14.22.1",
     "dotenv": "^17.2.2",
     "express": "^4.18.2",
+    "express-formidable": "^1.2.0",
+    "express-session": "^1.19.0",
     "node-cron": "^4.2.1",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

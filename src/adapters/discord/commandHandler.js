@@ -1,5 +1,5 @@
 import { Routes, REST } from 'discord.js';
-import { commands, commandMap } from '../commands/index.js';
+import { commands, commandMap } from './commands/index.js';
 
 class CommandHandler {
     constructor(client, token) {
@@ -49,7 +49,7 @@ class CommandHandler {
 
     setupListeners(services) {
         this.client.on('interactionCreate', async interaction => {
-            if (!interaction.isCommand()) return;
+            if (!interaction.isChatInputCommand()) return;
 
             const command = this.commands.get(interaction.commandName);
             if (!command) return;

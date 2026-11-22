@@ -5,18 +5,19 @@ Simple SQLite database setup for the Discord Gemini Bot.
 ## Files
 
 - `index.js` - Main database initialization and model exports
-- `models/prompt.js` - Prompt model with validation and hooks
+- `models/` - Prompt, Message and Reminder models
 
 ## Models
 
-### Prompt
-- `id` - Primary key
-- `title` - Prompt title (max 255 chars)
-- `content` - Prompt content (max 10000 chars)
-- `is_active` - Boolean flag for active prompt
-- `created_by` - User ID who created the prompt
-- `usage_count` - Number of times used
-- `created_at` / `updated_at` - Timestamps
+### Prompt (`prompts`)
+System prompts. The one with `is_active = true` is read on every message, so edits in the
+admin panel apply immediately.
+
+### Message (`messages`)
+Chat history. `conversationKey` is `<platform>:<conversationId>`, `role` is `user` or `model`.
+
+### Reminder (`reminders`)
+Pending reminders: `platform`, `conversationId`, `userId`, `text`, `dueAt`. Deleted once sent.
 
 ## Usage
 
@@ -44,9 +45,3 @@ await newPrompt.activate();
 The database automatically seeds with:
 1. "小云雀来海 个性" - Custom personality prompt (active by default)
 2. "专业助手" - Professional assistant prompt (inactive)
-
-## API Endpoints
-
-- `GET /ai-api/status` - Database and service health
-- `GET /ai-api/activePrompt` - Get current active prompt
-- `POST /ai-api/reloadPrompt` - Reload Gemini with current prompt

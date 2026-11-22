@@ -1,63 +1,74 @@
-import { Client, Events, GatewayIntentBits } from "discord.js";
 import config from "./src/config/index.js";
-import geminiService from "./src/services/gemini.js";
-import MessageHandler from "./src/handlers/messageHandler.js";
-import messaging from "./src/services/messaging.js";
-import { sequelize, initializeDatabase } from "./database/index.js";
-import expressStart from "./src/server.js";
-import CommandHandler from "./src/handlers/commandHandler.js";
-import { setupCronJobs } from "./src/handlers/cronScheduler.js";
+import { sequelize, Prompt, Message, Reminder, initializeDatabase } from "./database/index.js";
+import { GeminiService } from "./src/services/gemini.js";
 import { ReminderService } from "./src/services/reminder.js";
+import { createConversationStore } from "./src/core/conversationStore.js";
+import { createRouter } from "./src/core/router.js";
+import { DiscordAdapter } from "./src/adapters/discord/index.js";
+import { setupCronJobs } from "./src/scheduler.js";
+import startServer from "./src/server.js";
 
-// Initialize services
+const DEFAULT_PROMPT = "你是一个聊天机器人，友好、有帮助且富有创造力。";
+
+process.on("unhandledRejection", (error) => {
+    console.error("❌ Unhandled rejection:", error);
+});
+
 try {
     await initializeDatabase();
-    await geminiService.init();
-    console.log("✅ Database & AI Services ready");
-} catch (err) {
-    console.error("❌ Startup failed:", err);
+} catch (error) {
+    console.error("❌ Database failed:", error);
     process.exit(1);
 }
 
-// Setup Discord client
-const client = new Client({
-    intents: [
-        GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildMessages,
-        GatewayIntentBits.MessageContent,
-        GatewayIntentBits.GuildMembers,
-    ],
+// Read on every message, so a prompt edited in the admin panel applies immediately
+const getSystemPrompt = async () => (await Prompt.getActive())?.content ?? DEFAULT_PROMPT;
+
+const ai = new GeminiService({
+    apiKey: config.GEMINI_API_KEY,
+    model: config.MODEL_NAME,
+    maxOutputTokens: config.MAX_OUTPUT_TOKENS,
 });
+const store = createConversationStore(Message, { limit: config.HISTORY_LIMIT });
+const router = createRouter({ ai, store, getSystemPrompt });
 
-client.login(config.DISCORD_TOKEN);
-messaging.setClient(client);
-
-const messageHandler = new MessageHandler(client);
-const commandHandler = new CommandHandler(client, config.DISCORD_TOKEN);
-
-// Setup services
+// Platform adapters, keyed by name. Add new platforms (WhatsApp, …) here.
+const adapters = new Map();
 const services = {
-    reminderService: new ReminderService(client)
+    reminderService: new ReminderService({ Reminder, adapters }),
+    conversationStore: store,
 };
-setupCronJobs(client, services);
 
-// Bot ready
-client.on(Events.ClientReady, async (c) => {
-    console.log(`✅ Discord bot ready: ${c.user.tag}`);
+if (config.DISCORD_TOKEN) {
+    adapters.set("discord", new DiscordAdapter({ config, services }));
+}
+if (adapters.size === 0) {
+    console.warn("⚠️ No platform configured (set DISCORD_TOKEN). Only the web server will run.");
+}
 
-    if (config.INIT_CHANNEL_ID) {
-        messaging.sendIntroMessage(config.INIT_CHANNEL_ID, geminiService);
+startServer(sequelize);
+
+for (const adapter of adapters.values()) {
+    try {
+        await adapter.start(router.handle);
+    } catch (error) {
+        console.error(`❌ Failed to start ${adapter.name} adapter:`, error);
+        adapters.delete(adapter.name);
     }
+}
 
-    commandHandler.registerCommands();
-    commandHandler.setupListeners(services);
-});
+setupCronJobs(services, { historyRetentionDays: config.HISTORY_RETENTION_DAYS });
 
-// Handle messages
-client.on(Events.MessageCreate, async (message) => {
-    await messageHandler.handleMessage(message);
-});
-
-// Start web server
-expressStart(sequelize, geminiService);
-
+// Optional startup announcement on Discord
+const discord = adapters.get("discord");
+if (discord && config.INIT_CHANNEL_ID) {
+    try {
+        const intro = await ai.generate({
+            system: await getSystemPrompt(),
+            text: "简单介绍一下你自己，用一段话",
+        });
+        await discord.send(config.INIT_CHANNEL_ID, `@everyone 🤖 AI assistant is now ONLINE!\n${intro}`);
+    } catch (error) {
+        console.error("❌ Failed to send introduction:", error.message);
+    }
+}

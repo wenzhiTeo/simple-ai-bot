@@ -5,6 +5,7 @@ import { helpCommand } from './help.js';
 import { remindersCommand } from './reminders.js';
 import { clearRemindersCommand } from './clear-reminders.js';
 import { resetCommand } from './reset.js';
+import { statusCommand } from './status.js';
 
 export const commands = [
     pingCommand,
@@ -12,7 +13,8 @@ export const commands = [
     helpCommand,
     remindersCommand,
     clearRemindersCommand,
-    resetCommand
+    resetCommand,
+    statusCommand
 ];
 
 export const commandMap = new Map(

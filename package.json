@@ -22,6 +22,7 @@
     "@adminjs/express": "^6.1.1",
     "@adminjs/sequelize": "^4.1.1",
     "@google/genai": "^2.32.0",
+    "@whiskeysockets/baileys": "7.0.0-rc14",
     "adminjs": "^7.6.1",
     "discord.js": "^14.22.1",
     "dotenv": "^17.2.2",
@@ -29,6 +30,7 @@
     "express-formidable": "^1.2.0",
     "express-session": "^1.19.0",
     "node-cron": "^4.2.1",
+    "pino": "^9.14.0",
     "sequelize": "^6.37.7",
     "sqlite3": "^5.1.7"
   },

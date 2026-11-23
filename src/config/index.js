@@ -23,6 +23,18 @@ const config = {
     IS_MENTION_ONLY: process.env.IS_MENTION_ONLY !== "false",
     MAX_MESSAGE_LENGTH: int(process.env.MAX_MESSAGE_LENGTH, 2000),
 
+    // WhatsApp (the adapter is enabled when WHATSAPP_PHONE is set).
+    // The bot links to this number as a device and only listens to its "Message yourself" chat.
+    WHATSAPP_PHONE: process.env.WHATSAPP_PHONE,
+    // Login session. Anyone with these files can use your WhatsApp: keep it private.
+    WHATSAPP_AUTH_DIR: process.env.WHATSAPP_AUTH_DIR || "whatsapp-auth",
+
+    // Utility bills (WhatsApp only)
+    // Who receives confirmed bills: phone number with country code, e.g. 60123456789
+    BILL_RECIPIENT: process.env.BILL_RECIPIENT,
+    // How many people share the bills
+    BILL_SPLIT: Math.max(1, int(process.env.BILL_SPLIT, 2)),
+
     // Web server / admin panel
     ADMIN_PORT: int(process.env.ADMIN_PORT, 3000),
     // When ADMIN_PASSWORD is set, /admin asks for it (HTTP Basic auth).

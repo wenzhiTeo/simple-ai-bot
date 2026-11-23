@@ -5,7 +5,7 @@ Simple SQLite database setup for the Discord Gemini Bot.
 ## Files
 
 - `index.js` - Main database initialization and model exports
-- `models/` - Prompt, Message and Reminder models
+- `models/` - Prompt, Message, Reminder, Bill and Setting (one row, model settings editable in /admin) models
 
 ## Models
 
@@ -18,6 +18,10 @@ Chat history. `conversationKey` is `<platform>:<conversationId>`, `role` is `use
 
 ### Reminder (`reminders`)
 Pending reminders: `platform`, `conversationId`, `userId`, `text`, `dueAt`. Deleted once sent.
+
+### Bill (`bills`)
+Utility bills that were confirmed and sent: `year`, `month`, `items` (JSON, full amounts in
+cents), `people`, `totalCents` (each person's share), `recipient`, `text` (the exact message).
 
 ## Usage
 

@@ -6,12 +6,17 @@ import { Op } from "sequelize";
  */
 export function createConversationStore(Message, { limit = 20 } = {}) {
     return {
-        /** Most recent turns, oldest first, always starting with a user turn. */
-        async history(conversationKey) {
+        /**
+         * Most recent turns, oldest first, always starting with a user turn.
+         * @param {string} conversationKey
+         * @param {number} [max] overrides the store's default limit; 0 = no history
+         */
+        async history(conversationKey, max = limit) {
+            if (max <= 0) return [];
             const rows = await Message.findAll({
                 where: { conversationKey },
                 order: [["id", "DESC"]],
-                limit,
+                limit: max,
             });
             rows.reverse();
             while (rows.length && rows[0].role !== "user") rows.shift();

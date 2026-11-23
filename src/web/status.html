@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Bot 状态</title>
+<style>
+  :root {
+    --page: #f9f9f7;
+    --surface: #fcfcfb;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --hairline: #e1e0d9;
+    --border: rgba(11, 11, 11, 0.10);
+    --accent: #2a78d6;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --page: #0d0d0d;
+      --surface: #1a1a19;
+      --ink: #f0efec;
+      --ink-2: #c3c2b7;
+      --muted: #898781;
+      --hairline: #2c2c2a;
+      --border: rgba(255, 255, 255, 0.10);
+      --accent: #3987e5;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin-bottom: 20px; }
+  h1 { font-size: 20px; margin: 0; font-weight: 600; }
+  .meta { color: var(--ink-2); font-size: 13px; margin-left: auto; display: flex; gap: 12px; align-items: center; }
+  button {
+    font: inherit; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; cursor: pointer;
+  }
+  button:hover { border-color: var(--muted); }
+  a { color: var(--accent); }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 10px; border-radius: 999px; font-weight: 600; font-size: 13px;
+    background: var(--surface); border: 1px solid var(--border);
+  }
+  .badge.good { border-color: var(--good); }
+  .badge.warning { border-color: var(--warning); }
+  .badge.critical { border-color: var(--critical); }
+
+  .reasons { margin: -8px 0 20px; padding: 0; list-style: none; color: var(--ink-2); font-size: 13px; }
+  .reasons li { display: flex; gap: 6px; align-items: baseline; }
+
+  section { margin-bottom: 24px; }
+  h2 { font-size: 13px; font-weight: 600; color: var(--ink-2); margin: 0 0 8px; letter-spacing: 0.02em; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 8px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
+    min-width: 0;
+  }
+  .label { color: var(--ink-2); font-size: 12px; }
+  .value { font-size: 18px; font-weight: 600; margin-top: 2px; overflow-wrap: anywhere; }
+  .sub { color: var(--muted); font-size: 12px; margin-top: 2px; overflow-wrap: anywhere; }
+  .status-line { display: flex; align-items: center; gap: 6px; font-weight: 600; margin-top: 2px; }
+
+  .meters { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; margin-bottom: 8px; }
+  .meter-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .meter-head .value { font-size: 16px; }
+  .track {
+    --fill: var(--accent);
+    height: 8px; border-radius: 4px; margin: 8px 0 6px; overflow: hidden;
+    background: color-mix(in srgb, var(--fill) 20%, var(--surface));
+  }
+  .track.warning { --fill: var(--warning); }
+  .track.critical { --fill: var(--critical); }
+  .fill { height: 100%; border-radius: 4px; background: var(--fill); min-width: 2px; }
+
+  .error-box {
+    margin-top: 8px; background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--warning); border-radius: 8px; padding: 10px 14px;
+  }
+  .error-box .msg { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--ink-2); margin-top: 4px; overflow-wrap: anywhere; }
+  .section-error { color: var(--ink-2); }
+  footer { color: var(--muted); font-size: 12px; margin-top: 32px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>🤖 AI Bot 状态</h1>
+    <span id="overall" class="badge"><span>加载中…</span></span>
+    <div class="meta">
+      <span id="updated"></span>
+      <button id="refresh" type="button">刷新</button>
+    </div>
+  </header>
+  <ul id="reasons" class="reasons"></ul>
+  <div id="content"></div>
+  <footer>每 30 秒自动刷新 · <a href="admin">管理后台</a>（个性、模型设置、历史记录）</footer>
+</main>
+
+<script>
+"use strict";
+// Formatters mirror src/utils/format.js; keep the two in step.
+const REFRESH_MS = 30_000;
+const STATUS = {
+  good: { icon: "✅", text: "正常" },
+  warning: { icon: "⚠️", text: "注意" },
+  critical: { icon: "❌", text: "异常" },
+};
+
+/** Tiny DOM builder; strings always become text nodes, so nothing from the server is parsed as HTML. */
+function h(tag, attrs, ...children) {
+  const el = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs ?? {})) {
+    if (value === undefined || value === null || value === false) continue;
+    el.setAttribute(key, value === true ? "" : value);
+  }
+  for (const child of children.flat()) {
+    if (child === undefined || child === null || child === false) continue;
+    el.append(child instanceof Node ? child : String(child));
+  }
+  return el;
+}
+
+const MB = 1024 * 1024;
+function bytes(n) {
+  if (n === null || n === undefined) return "—";
+  if (n >= 1024 * MB) return (n / (1024 * MB)).toFixed(1) + " GB";
+  if (n >= MB) return Math.round(n / MB) + " MB";
+  return Math.round(n / 1024) + " KB";
+}
+function duration(sec) {
+  sec = Math.floor(sec);
+  const d = Math.floor(sec / 86400), hr = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60);
+  if (d) return `${d} 天 ${hr} 小时`;
+  if (hr) return `${hr} 小时 ${m} 分`;
+  if (m) return `${m} 分钟`;
+  return `${sec} 秒`;
+}
+function ago(iso) {
+  if (!iso) return "—";
+  const sec = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (sec < 60) return "刚刚";
+  return duration(sec) + "前";
+}
+function clock(iso) {
+  return new Date(iso).toLocaleString("zh-CN", { hour12: false });
+}
+const platformName = (name) => ({ discord: "Discord", whatsapp: "WhatsApp" })[name] ?? name;
+const num = (n) => (n ?? 0).toLocaleString("zh-CN");
+const pct = (part, whole) => (whole ? Math.round(part / whole * 100) : 0);
+
+function card(label, value, sub) {
+  return h("div", { class: "card" }, h("div", { class: "label" }, label), h("div", { class: "value" }, value), sub && h("div", { class: "sub" }, sub));
+}
+function statusCard(label, state, text, sub) {
+  return h("div", { class: "card" },
+    h("div", { class: "label" }, label),
+    h("div", { class: "status-line " + state }, h("span", { "aria-hidden": "true" }, STATUS[state].icon), text),
+    sub && h("div", { class: "sub" }, sub));
+}
+function meter(label, used, total, state, detail) {
+  const percent = pct(used, total);
+  return h("div", { class: "card" },
+    h("div", { class: "meter-head" },
+      h("span", { class: "label" }, label),
+      h("span", { class: "value" }, percent + "%")),
+    h("div", {
+      class: "track " + state, role: "meter", "aria-label": label,
+      "aria-valuemin": 0, "aria-valuemax": 100, "aria-valuenow": percent,
+      title: `${label}：${bytes(used)} / ${bytes(total)}`,
+    }, h("div", { class: "fill", style: `width:${Math.min(100, percent)}%` })),
+    h("div", { class: "sub" }, (state === "good" ? "" : STATUS[state].icon + " ") + detail));
+}
+function section(title, ...body) {
+  return h("section", null, h("h2", null, title), ...body);
+}
+function sectionError(result) {
+  return h("div", { class: "card section-error" }, "❌ 读取失败：" + result.error);
+}
+
+/** `health` is judged on the server (assess() in src/services/status.js), same as the Discord /status command. */
+function renderOverall(health, fetchError) {
+  const state = fetchError ? "critical" : health.overall;
+  const badge = document.getElementById("overall");
+  badge.className = "badge " + state;
+  badge.replaceChildren(h("span", { "aria-hidden": "true" }, STATUS[state].icon), h("span", null, fetchError ? "连不上机器人" : STATUS[state].text));
+  const list = fetchError ? [{ level: "critical", text: fetchError }] : health.problems;
+  document.getElementById("reasons").replaceChildren(...list.map((p) => h("li", null, h("span", { "aria-hidden": "true" }, STATUS[p.level].icon), h("span", null, p.text))));
+}
+
+function renderBot(bot) {
+  if (bot.error) return section("机器人", sectionError(bot));
+  const platforms = bot.platforms.length
+    ? bot.platforms.map((p) => statusCard(platformName(p.name), p.connected ? "good" : "critical", p.connected ? "已连接" : "未连接"))
+    : [statusCard("聊天平台", "warning", "未配置", "设置 DISCORD_TOKEN 或 WHATSAPP_PHONE")];
+  const s = bot.settings;
+  const cards = [
+    ...platforms,
+    card("模型", s ? s.model : "—", s ? `temperature ${s.temperature} · 最多 ${num(s.maxOutputTokens)} tokens` : "设置表为空"),
+    card("个性", bot.prompt ?? "默认（未启用任何个性）"),
+    card("记忆", s ? (s.historyLimit ? `最近 ${s.historyLimit} 条` : "关闭") : "—"),
+    card("本次启动后处理", `${num(bot.handled)} 条`, bot.failed ? `其中失败 ${num(bot.failed)} 条` : "没有失败"),
+  ];
+  const error = bot.lastError && h("div", { class: "error-box" },
+    h("div", null, h("strong", null, "⚠️ 最近一次回复失败"), " · ", clock(bot.lastError.at), "（", ago(bot.lastError.at), "）"),
+    h("div", { class: "msg" }, bot.lastError.message));
+  return section("机器人", h("div", { class: "grid" }, cards), error);
+}
+
+function renderSystem(sys, proc, levels) {
+  if (sys.error) return section("服务器", sectionError(sys));
+  const m = sys.memory;
+  const memUsed = m.totalBytes - m.availableBytes;
+  const meters = [
+    meter("内存", memUsed, m.totalBytes, levels.memory,
+      `已用 ${bytes(memUsed)} / ${bytes(m.totalBytes)} · 可用 ${bytes(m.availableBytes)}` + (m.swapTotalBytes === null ? "（非 Linux，仅供参考）" : "")),
+  ];
+  if (m.swapTotalBytes) {
+    const swapUsed = m.swapTotalBytes - m.swapFreeBytes;
+    meters.push(meter("Swap", swapUsed, m.swapTotalBytes, levels.swap, `已用 ${bytes(swapUsed)} / ${bytes(m.swapTotalBytes)}`));
+  }
+  if (sys.disk) {
+    const d = sys.disk;
+    const diskUsed = d.totalBytes - d.freeBytes;
+    meters.push(meter("磁盘", diskUsed, d.totalBytes, levels.disk, `已用 ${bytes(diskUsed)} / ${bytes(d.totalBytes)} · 剩余 ${bytes(d.freeBytes)}`));
+  }
+  const [l1, l5, l15] = sys.loadavg.map((n) => n.toFixed(2));
+  const cards = [
+    m.swapTotalBytes === 0 && statusCard("Swap", levels.swap, "未开启", "见部署文档第 1 步"),
+    statusCard("负载（1 / 5 / 15 分钟）", levels.load, `${l1} / ${l5} / ${l15}`, `${sys.cpus} 个 CPU`),
+    card("服务器已运行", duration(sys.uptimeSec), sys.platform),
+    card("机器人进程内存", bytes(proc.rssBytes), `heap ${bytes(proc.heapUsedBytes)} · pm2 超过 600 MB 会自动重启`),
+    card("机器人已运行", duration(proc.uptimeSec), `Node ${proc.node} · PID ${proc.pid}`),
+  ];
+  return section("服务器", h("div", { class: "meters" }, meters), h("div", { class: "grid" }, cards));
+}
+
+function renderData(data) {
+  if (data.error) return section("数据", sectionError(data));
+  return section("数据", h("div", { class: "grid" },
+    card("保存的消息", `${num(data.messages)} 条`, `${num(data.conversations)} 个会话`),
+    card("最近一条消息", ago(data.lastMessageAt), data.lastMessageAt ? clock(data.lastMessageAt) : "还没有"),
+    card("待发送的提醒", `${num(data.reminders)} 个`),
+    card("数据库文件", bytes(data.databaseBytes)),
+  ));
+}
+
+let timer;
+async function load() {
+  clearTimeout(timer);
+  try {
+    const response = await fetch("status.json", { cache: "no-store" });
+    if (!response.ok) throw new Error(`状态接口返回 ${response.status}`);
+    const s = await response.json();
+    renderOverall(s.health);
+    document.getElementById("content").replaceChildren(renderBot(s.bot), renderSystem(s.system, s.process, s.health.levels), renderData(s.data));
+    document.getElementById("updated").textContent = "更新于 " + new Date(s.time).toLocaleTimeString("zh-CN", { hour12: false });
+  } catch (error) {
+    // Keep the last good numbers on screen, just flag that they are stale
+    const stale = document.getElementById("content").childElementCount ? "（下面是上一次的数据）" : "";
+    renderOverall(null, "连不上机器人：" + error.message + stale);
+  } finally {
+    timer = setTimeout(load, REFRESH_MS);
+  }
+}
+document.getElementById("refresh").addEventListener("click", load);
+load();
+</script>
+</body>
+</html>

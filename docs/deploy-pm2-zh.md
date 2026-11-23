@@ -115,6 +115,9 @@ nano .env
 | `TZ` | 你的时区，例如 `Asia/Singapore`。服务器默认是 UTC，不设的话 `/remind 1430` 会按 UTC 的 14:30 算 |
 | `INIT_CHANNEL_ID` | **建议留空**，原因见下 |
 | `ADMIN_PASSWORD` | 留空即可，后台通过 SSH 隧道访问（第 8 步） |
+| `WHATSAPP_PHONE` | 要用 WhatsApp 才填：你自己的号码，含国家码，只写数字，例如 `60123456789` |
+| `BILL_RECIPIENT` | 水电费发给谁，格式同上 |
+| `BILL_SPLIT` | 分摊人数，默认 `2` |
 
 `.env.example` 里其他带示例值的行（比如 `BLACKLISTED_CHANNEL_IDS=channel_id_1,channel_id_2`）不用的话要删掉或清空。
 
@@ -149,7 +152,24 @@ node index.js
 ✅ Registered 6 commands
 ```
 
-去 Discord 里 @ 机器人说句话，确认它会回复。然后按 `Ctrl+C` 停掉。
+去 Discord 里 @ 机器人说句话，确认它会回复。
+
+**如果填了 `WHATSAPP_PHONE`，第一次启动要配对：** 日志里会出现
+
+```
+📱 WhatsApp pairing code: ABCD-EFGH
+```
+
+在手机上打开 WhatsApp → 设置 → 已关联的设备 → 关联新设备 → 选 **「改用电话号码关联」**，
+输入这 8 位码。看到 `✅ WhatsApp connected as …` 就成功了。
+
+然后在 WhatsApp 里打开 **「给自己发消息」** 的聊天，发一句 `水电费 wifi 100` 试试，
+应该收到一份以 🤖 开头的草稿。**不要回复「确认」**，回复 `取消` 即可，免得真的发给联系人。
+
+配对信息保存在项目里的 `whatsapp-auth/` 目录，之后重启都不用再配对。
+配对码有时效，手机提示无效或过期的话，按 `Ctrl+C` 重新执行 `node index.js` 拿新的。
+
+测试完按 `Ctrl+C` 停掉。
 
 ---
 
@@ -218,6 +238,8 @@ ssh -L 3000:localhost:3000 ubuntu@<服务器IP>
 
 保持这个 SSH 窗口开着，然后在本机浏览器打开 `http://localhost:3000/admin`。关掉 SSH 窗口隧道就断了。
 
+想快速看机器人和服务器是否正常（平台连接、最近报错、内存、swap、磁盘），打开同一个隧道下的状态页 `http://localhost:3000/status`。
+
 如果本机的 3000 端口被占用，把命令里**第一个** `3000` 换成别的，比如 `-L 3001:localhost:3000`，然后访问 `http://localhost:3001/admin`。
 
 ---
@@ -285,7 +307,9 @@ pm2 restart ai-bot
 
 ### 备份数据库
 
-所有数据（提示词、聊天历史、提醒）都在 `database.sqlite` 一个文件里。
+所有数据（提示词、聊天历史、提醒、水电费记录）都在 `database.sqlite` 一个文件里。
+
+`whatsapp-auth/` **不要备份或复制到别处**：拿到它就等于拿到你的 WhatsApp。丢了也没关系，重新配对即可。
 
 **【本机】**
 ```bash
@@ -307,6 +331,16 @@ scp ubuntu@<服务器IP>:~/simple-ai-bot/database.sqlite ./database-backup.sqlit
 
 **提醒时间差了几个小时**
 `.env` 里没设 `TZ`，或者设了之后没重启。
+
+**WhatsApp 显示 `logged out`**
+你在手机的"已关联的设备"里把它退出了，或者太久没上线被 WhatsApp 踢掉。删掉登录目录，重新配对：
+```bash
+rm -rf ~/simple-ai-bot/whatsapp-auth
+```
+然后 `pm2 stop ai-bot`，按第 5 步用 `node index.js` 拿新的配对码，配对成功后 `Ctrl+C`，再 `pm2 start ai-bot`。
+
+**WhatsApp 草稿收到两份**
+本机和服务器都配对并运行着。只保留一个，另一边在手机"已关联的设备"里退出。
 
 **`pm2: command not found`**
 全局安装没成功，重新执行 `sudo npm install -g pm2`。

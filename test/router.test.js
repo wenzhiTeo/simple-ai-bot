@@ -4,7 +4,7 @@ import { createRouter } from "../src/core/router.js";
 import { createConversationStore } from "../src/core/conversationStore.js";
 import { createTestDb, silentLogger } from "./helpers.js";
 
-async function setup({ generate, limit } = {}) {
+async function setup({ generate, limit, getSettings } = {}) {
     const { Message } = await createTestDb();
     const calls = [];
     const ai = {
@@ -14,7 +14,7 @@ async function setup({ generate, limit } = {}) {
         },
     };
     const store = createConversationStore(Message, { limit });
-    const router = createRouter({ ai, store, getSystemPrompt: async () => "SYSTEM", logger: silentLogger });
+    const router = createRouter({ ai, store, getSystemPrompt: async () => "SYSTEM", getSettings, logger: silentLogger });
     return { router, calls, store, Message };
 }
 
@@ -85,6 +85,27 @@ test("history is capped and always starts with a user turn", async () => {
     ]);
 });
 
+test("historyLimit from settings overrides the store limit, read on every message", async () => {
+    let historyLimit = 0;
+    const { router, calls } = await setup({ limit: 20, getSettings: async () => ({ historyLimit }) });
+    for (const text of ["a", "b"]) await router.handle(incoming({ text }));
+    assert.deepEqual(calls[1].history, []);
+
+    historyLimit = 2;
+    await router.handle(incoming({ text: "c" }));
+    assert.deepEqual(calls[2].history, [
+        { role: "user", text: "b" },
+        { role: "model", text: "echo: b" },
+    ]);
+});
+
+test("missing settings fall back to the store limit", async () => {
+    const { router, calls } = await setup({ getSettings: async () => null });
+    await router.handle(incoming({ text: "a" }));
+    await router.handle(incoming({ text: "b" }));
+    assert.equal(calls[1].history.length, 2);
+});
+
 test("group messages are prefixed with the speaker's name", async () => {
     const { router, calls } = await setup();
     await router.handle(incoming({ isGroup: true }));
@@ -117,4 +138,23 @@ test("a model failure sends a fallback reply and stores nothing", async () => {
 
     assert.equal(message.replies.length, 1);
     assert.equal(await Message.count(), 0);
+});
+
+test("a skill that handles a message skips AI chat; otherwise chat runs", async () => {
+    const { Message } = await (await import("./helpers.js")).createTestDb();
+    const calls = [];
+    const ai = { async generate(input) { calls.push(input); return "chat"; } };
+    const skill = { name: "s", handle: async (message, { key }) => { calls.push(key); return message.text === "skill"; } };
+    const router = createRouter({
+        ai, store: createConversationStore(Message), getSystemPrompt: async () => "", skills: [skill], logger: silentLogger,
+    });
+
+    const a = incoming({ text: "skill" });
+    await router.handle(a);
+    assert.deepEqual(calls, ["discord:c1"]);
+    assert.deepEqual(a.replies, []);
+
+    const b = incoming({ text: "hello" });
+    await router.handle(b);
+    assert.deepEqual(b.replies, ["chat"]);
 });

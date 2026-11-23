@@ -29,9 +29,25 @@ const ERROR_REPLIES = [
 
 const IMAGE_FAILED_REPLY = "图片没能下载下来，可以再发一次吗？🥺";
 
-export function createRouter({ ai, store, getSystemPrompt, logger = console }) {
+/**
+ * A skill gets first look at each message, before AI chat.
+ * @typedef {object} Skill
+ * @property {string} name
+ * @property {(message: IncomingMessage, ctx: { key: string }) => Promise<boolean>} handle
+ *           resolve true when the message was handled (AI chat is then skipped)
+ */
+
+/**
+ * @param {object} options
+ * @param {() => Promise<{historyLimit?: number} | null>} [options.getSettings]
+ *        read on every message; historyLimit overrides the store's default
+ * @param {Skill[]} [options.skills]
+ */
+export function createRouter({ ai, store, getSystemPrompt, getSettings = async () => null, skills = [], logger = console }) {
     // One message at a time per conversation, so history stays in order.
     const queues = new Map();
+    // Since this process started, shown on the /status page
+    const stats = { handled: 0, failed: 0, lastError: null };
 
     function enqueue(key, task) {
         const previous = queues.get(key) ?? Promise.resolve();
@@ -44,6 +60,10 @@ export function createRouter({ ai, store, getSystemPrompt, logger = console }) {
     }
 
     async function process(message, key) {
+        for (const skill of skills) {
+            if (await skill.handle(message, { key })) return;
+        }
+
         await message.typing?.().catch(() => {});
 
         const images = [];
@@ -65,10 +85,8 @@ export function createRouter({ ai, store, getSystemPrompt, logger = console }) {
             ? `${message.userName}: ${text}`
             : text;
 
-        const [system, history] = await Promise.all([
-            getSystemPrompt(),
-            store.history(key),
-        ]);
+        const [system, settings] = await Promise.all([getSystemPrompt(), getSettings()]);
+        const history = await store.history(key, settings?.historyLimit);
 
         const answer = (await ai.generate({ system, history, text: userText, images })).trim();
         if (!answer) throw new Error("Model returned an empty response");
@@ -86,12 +104,36 @@ export function createRouter({ ai, store, getSystemPrompt, logger = console }) {
             return enqueue(key, async () => {
                 try {
                     await process(message, key);
+                    stats.handled++;
                 } catch (error) {
+                    stats.failed++;
+                    stats.lastError = { at: new Date().toISOString(), message: errorSummary(error) };
                     logger.error("❌ Message handling failed:", error);
                     const fallback = ERROR_REPLIES[Math.floor(Math.random() * ERROR_REPLIES.length)];
                     await message.reply(fallback).catch(() => {});
                 }
             });
         },
+
+        /** @returns {{handled: number, failed: number, lastError: {at: string, message: string} | null}} */
+        stats() {
+            return { ...stats };
+        },
     };
+}
+
+/**
+ * One readable line for an error. Gemini SDK errors carry the API's JSON body as their
+ * message; pull the human part out of it ("API key not valid...", "model not found...").
+ */
+export function errorSummary(error) {
+    const text = String(error?.message ?? error);
+    try {
+        // The JSON body is either the whole message or follows a "got status: 400 ..." prefix
+        const parsed = JSON.parse(text.slice(Math.max(0, text.indexOf("{"))));
+        if (parsed?.error?.message) return `${parsed.error.code ?? ""} ${parsed.error.message}`.trim().slice(0, 300);
+    } catch {
+        // not JSON
+    }
+    return text.slice(0, 300);
 }

@@ -31,6 +31,11 @@ export class DiscordAdapter {
         });
     }
 
+    /** True while logged in to Discord (shown on the /status page). */
+    get connected() {
+        return this.client.isReady();
+    }
+
     /** Resolves once the bot is logged in and ready. */
     async start(onMessage) {
         const ready = once(this.client, Events.ClientReady);

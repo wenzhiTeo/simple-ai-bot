@@ -4,3 +4,4 @@ node_modules
 .adminjs/
 .vscode/
 database.sqlite
+whatsapp-auth/

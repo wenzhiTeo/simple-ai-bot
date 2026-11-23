@@ -38,6 +38,11 @@ export const helpCommand = {
                     inline: true
                 },
                 {
+                    name: '🩺 /status',
+                    value: 'Bot and server status, only you see it (server managers only)',
+                    inline: true
+                },
+                {
                     name: '❓ /help',
                     value: 'Show this help message',
                     inline: true
